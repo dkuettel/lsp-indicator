@@ -259,7 +259,6 @@ local function get_diagnostics(bufnr)
         return compute_diagnostics(bufnr)
     end
 
-    print("wait_ms")
     local wait_ms = settings.interval_ms - vim.fn.reltimefloat(vim.fn.reltime(last_diagnostics_update)) * 1000
 
     if wait_ms > 0 then
