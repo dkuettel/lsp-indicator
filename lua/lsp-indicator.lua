@@ -214,10 +214,26 @@ local function get_state(bufnr)
     return format(bufnr, theme)
 end
 
+---return something like " 5   3   1   3"
+---@param bufnr nil | integer
+---@return string
+local function get_diagnostics(bufnr)
+    local icons = { "", "", "", "" }
+    local show = {}
+    for s = 1, 4 do
+        local c = #vim.diagnostic.get(bufnr, { severity = s })
+        if c > 0 then
+            table.insert(show, icons[s] .. " " .. c)
+        end
+    end
+    return vim.fn.join(show, "  ")
+end
+
 return {
     setup = setup,
     get_named_progress = get_named_progress,
     get_progress = get_progress,
     get_named_state = get_named_state,
     get_state = get_state,
+    get_diagnostics = get_diagnostics,
 }
