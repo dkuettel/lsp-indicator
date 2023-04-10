@@ -10,8 +10,9 @@ local handler_is_registered = false
 --@type boolean
 local event_is_registered = false
 
----access like progress[client_id][token] -> percentage or nil
----@type table<integer, table<string, number>>
+---access like progress[client_id][token]
+--.busy for general idle vs busy, .percentage with percentage IF the lsp reports it
+---@type table<integer, table<string, { busy: boolean, percentage: number? }>>
 local client_progress = {}
 
 ---last on_update call from lsp_progress_handler
@@ -48,8 +49,20 @@ local function update_progress(ctx, result)
         client_progress[client_id] = {}
     end
     local token = result.token
-    local percentage = result.value.percentage -- nil when done
-    client_progress[client_id][token] = percentage
+    if client_progress[client_id][token] == nil then
+        client_progress[client_id][token] = { busy = false, percentage = nil }
+    end
+    local kind = result.value.kind
+    if kind == "begin" or kind == "report" then
+        local percentage = result.value.percentage -- can be nil
+        client_progress[client_id][token].busy = true
+        client_progress[client_id][token].percentage = percentage
+    elseif kind == "end" then
+        client_progress[client_id][token] = nil
+    else
+        -- NOTE that's unexpected :)
+        client_progress[client_id][token] = nil
+    end
 end
 
 local function maybe_callback()
@@ -92,20 +105,21 @@ local function lsp_progress_handler(err, result, ctx, config)
 end
 
 ---from all parallel progress, get the lowest one
----@param progress table<string, number>
----@return nil | number
-local function get_lowest_percentage(progress)
+--percentage or true when busy, nil when done
+---@param progress nil | table<string, { busy: boolean, percentage: number? }>
+---@return { busy: boolean, percentage: number? }
+local function get_representative_state(progress)
     if progress == nil then
-        return nil
+        return { busy = false, percentage = nil }
     end
-    local lowest_percentage = 101
-    for _, percentage in pairs(progress) do
-        lowest_percentage = math.min(lowest_percentage, percentage)
+    local agg = { busy = false, percentage = nil }
+    for _, state in pairs(progress) do
+        agg.busy = agg.busy or state.busy
+        if state.percentage ~= nil then
+            agg.percentage = math.min(agg.percentage, state.percentage)
+        end
     end
-    if lowest_percentage == 101 then
-        return nil
-    end
-    return lowest_percentage
+    return agg
 end
 
 ---nerdfont-style indicator of progress percentage
@@ -125,14 +139,14 @@ end
 local function format_progress(client_id, theme)
     -- TODO not clear if client.id is unique and never reused
     local progress = client_progress[client_id]
-    if progress == nil then
+    local state = get_representative_state(progress)
+    if not state.busy then
         return theme.idle
     end
-    local percentage = get_lowest_percentage(progress)
-    if percentage == nil then
-        return theme.idle
+    if state.percentage == nil then
+        return theme.busy
     end
-    return get_progress_icon(percentage, theme.progress)
+    return get_progress_icon(state.percentage, theme.progress)
 end
 
 ---to sort by client name, increasing
@@ -198,6 +212,7 @@ end
 local function get_named_progress(bufnr)
     local theme = {
         name = true,
+        busy = "",
         progress = "",
         idle = "",
     }
@@ -210,6 +225,7 @@ end
 local function get_progress(bufnr)
     local theme = {
         name = false,
+        busy = "",
         progress = "",
         idle = "",
     }
@@ -220,7 +236,7 @@ end
 ---@param bufnr nil | integer
 ---@return string
 local function get_named_state(bufnr)
-    local theme = { name = true, progress = "", idle = "" }
+    local theme = { name = true, busy = "", progress = "", idle = "" }
     return format(bufnr, theme)
 end
 
@@ -228,7 +244,7 @@ end
 ---@param bufnr nil | integer
 ---@return string
 local function get_state(bufnr)
-    local theme = { name = false, progress = "", idle = "" }
+    local theme = { name = false, busy = "", progress = "", idle = "" }
     return format(bufnr, theme)
 end
 
