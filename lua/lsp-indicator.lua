@@ -6,6 +6,10 @@ local settings = nil
 --@type boolean
 local handler_is_registered = false
 
+---Is the DiagnosticChanged event hanlder registered?
+--@type boolean
+local event_is_registered = false
+
 ---access like progress[client_id][token] -> percentage or nil
 ---@type table<integer, table<string, number>>
 local client_progress = {}
@@ -19,6 +23,13 @@ local scheduled_update = nil
 ---log buffer id
 ---@type nil | integer
 local log_buffer = nil
+
+---cached diagnostics string
+--@type nil | str
+local last_diagnostics = nil
+
+---last update ofr last_diagnostics
+local last_diagnostics_update = nil
 
 local function log_lsp_progress_reply(err, result, ctx, config)
     if log_buffer == nil then
@@ -172,6 +183,13 @@ local function setup(config)
         vim.lsp.handlers["$/progress"] = vim.lsp.with(lsp_progress_handler, { chain = vim.lsp.handlers["$/progress"] })
         handler_is_registered = true
     end
+    if not event_is_registered then
+        vim.api.nvim_create_autocmd("DiagnosticChanged", {
+            callback = maybe_callback,
+            desc = "lsp-indicator",
+        })
+        event_is_registered = true
+    end
 end
 
 ---return something like " rust  lua" showing all lsp's progresses
@@ -214,10 +232,8 @@ local function get_state(bufnr)
     return format(bufnr, theme)
 end
 
----return something like " 5   3   1   3"
 ---@param bufnr nil | integer
----@return string
-local function get_diagnostics(bufnr)
+local function compute_diagnostics(bufnr)
     local icons = { "", "", "", "" }
     local show = {}
     for s = 1, 4 do
@@ -226,7 +242,31 @@ local function get_diagnostics(bufnr)
             table.insert(show, icons[s] .. " " .. c)
         end
     end
-    return vim.fn.join(show, "  ")
+
+    last_diagnostics = vim.fn.join(show, "  ")
+    last_diagnostics_update = vim.fn.reltime()
+
+    return last_diagnostics
+end
+
+---return something like " 5   3   1   3"
+--cached based on setup's interval_ms setting
+--calling often will not slow down nvim
+---@param bufnr nil | integer
+---@return string
+local function get_diagnostics(bufnr)
+    if last_diagnostics_update == nil or last_diagnostics == nil then
+        return compute_diagnostics(bufnr)
+    end
+
+    print("wait_ms")
+    local wait_ms = settings.interval_ms - vim.fn.reltimefloat(vim.fn.reltime(last_diagnostics_update)) * 1000
+
+    if wait_ms > 0 then
+        return last_diagnostics
+    end
+
+    return compute_diagnostics(bufnr)
 end
 
 return {
