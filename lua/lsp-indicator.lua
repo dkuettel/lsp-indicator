@@ -206,7 +206,7 @@ local function setup(config)
     end
 end
 
----return something like " rust  lua" showing all lsp's progresses
+---return something like " rust 󰄳 lua" showing all lsp's progresses
 ---@param bufnr nil | integer
 ---@return string
 local function get_named_progress(bufnr)
@@ -214,7 +214,7 @@ local function get_named_progress(bufnr)
         name = true,
         busy = "",
         progress = "",
-        idle = "",
+        idle = "󰄳",
     }
     return format(bufnr, theme)
 end
@@ -227,16 +227,16 @@ local function get_progress(bufnr)
         name = false,
         busy = "",
         progress = "",
-        idle = "",
+        idle = "󰄳",
     }
     return format(bufnr, theme)
 end
 
----return something like " rust  lua" showing all lsp's states
+---return something like "󰁙 rust 󰄳 lua" showing all lsp's states
 ---@param bufnr nil | integer
 ---@return string
 local function get_named_state(bufnr)
-    local theme = { name = true, busy = "", progress = "", idle = "" }
+    local theme = { name = true, busy = "", progress = "", idle = "󰄳" }
     return format(bufnr, theme)
 end
 
@@ -244,13 +244,13 @@ end
 ---@param bufnr nil | integer
 ---@return string
 local function get_state(bufnr)
-    local theme = { name = false, busy = "", progress = "", idle = "" }
+    local theme = { name = false, busy = "", progress = "", idle = "󰄳" }
     return format(bufnr, theme)
 end
 
 ---@param bufnr nil | integer
 local function compute_diagnostics(bufnr)
-    local icons = { "", "", "", "" }
+    local icons = { "󰅚", "", "󰋽", "󰛩" }
     local show = {}
     for s = 1, 4 do
         local c = #vim.diagnostic.get(bufnr, { severity = s })
@@ -265,7 +265,7 @@ local function compute_diagnostics(bufnr)
     return last_diagnostics
 end
 
----return something like " 5   3   1   3"
+---return something like "󰅚 5   3  󰋽 1  󰛩 3"
 --cached based on setup's interval_ms setting
 --calling often will not slow down nvim
 ---@param bufnr nil | integer
